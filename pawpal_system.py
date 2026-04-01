@@ -116,6 +116,85 @@ class Scheduler:
         """Return only tasks that are not completed."""
         return self.get_all_tasks(include_completed=False)
 
+    def filter_tasks(self, completed: bool | None = None, pet_name: str | None = None) -> list[Task]:
+        """Filter tasks by completion status and/or pet name.
+        
+        Args:
+            completed: If True, return only completed tasks. If False, return only incomplete tasks.
+                      If None, include all tasks regardless of completion status.
+            pet_name: If provided, return only tasks for the specified pet.
+                     If None, include tasks from all pets.
+        
+        Returns:
+            A filtered list of Task objects matching the specified criteria.
+        """
+        tasks = self.get_all_tasks(include_completed=True)
+        
+        # Filter by completion status
+        if completed is not None:
+            tasks = [task for task in tasks if task.completed == completed]
+        
+        # Filter by pet name
+        if pet_name is not None:
+            pet = self.owner.get_pet(pet_name)
+            if pet is None:
+                return []
+            tasks = [task for task in tasks if task in pet.tasks]
+        
+        return tasks
+
+    def sort_by_time(self, include_completed: bool = False) -> list[Task]:
+        """Return tasks sorted by time in HH:MM format."""
+        tasks = self.get_all_tasks(include_completed=include_completed)
+        return sorted(
+            tasks,
+            key=lambda task: tuple(map(int, task.time.split(":"))),
+        )
+
+    def detect_time_conflicts(self, include_completed: bool = False, pet_name: str | None = None) -> list[str]:
+        """Detect tasks scheduled at the same time and return warning messages.
+        
+        Args:
+            include_completed: Whether to check completed tasks as well.
+            pet_name: If provided, only check conflicts for that specific pet.
+                     If None, check conflicts across all pets.
+        
+        Returns:
+            A list of warning messages describing time conflicts. 
+            Empty list if no conflicts found.
+        """
+        tasks = self.get_all_tasks(include_completed=include_completed)
+        
+        # Filter by pet if specified
+        if pet_name is not None:
+            pet = self.owner.get_pet(pet_name)
+            if pet is None:
+                return []
+            tasks = [task for task in tasks if task in pet.tasks]
+        
+        # Group tasks by time
+        tasks_by_time: dict[str, list[tuple[str, Task]]] = {}
+        for pet in self.owner.pets:
+            for task in pet.tasks:
+                if task in tasks:  # Only include if part of filtered set
+                    if task.time not in tasks_by_time:
+                        tasks_by_time[task.time] = []
+                    tasks_by_time[task.time].append((pet.name, task))
+        
+        # Find conflicts and generate warnings
+        warnings: list[str] = []
+        for time, task_list in sorted(tasks_by_time.items()):
+            if len(task_list) > 1:
+                # Format: time + list of (pet, description) pairs
+                conflict_details = ", ".join(
+                    f"{pet}: '{task.description}'" 
+                    for pet, task in task_list
+                )
+                warning = f"⚠️  CONFLICT at {time} — {conflict_details}"
+                warnings.append(warning)
+        
+        return warnings
+
     def organize_tasks(self, include_completed: bool = False) -> list[Task]:
         """Return tasks sorted by completion, frequency, time, and description."""
         frequency_order = {
@@ -137,7 +216,11 @@ class Scheduler:
         )
 
     def mark_task_completed(self, pet_name: str, description: str) -> bool:
-        """Mark a matching task as completed for the specified pet."""
+        """Mark a matching task as completed for the specified pet.
+        
+        For recurring tasks (daily/weekly), automatically creates a new instance
+        for the next occurrence.
+        """
         pet = self.owner.get_pet(pet_name)
         if pet is None:
             return False
@@ -145,6 +228,17 @@ class Scheduler:
         for task in pet.tasks:
             if task.description == description:
                 task.mark_completed()
+                
+                # Create new instance for recurring tasks
+                if task.frequency.strip().lower() in ["daily", "weekly"]:
+                    new_task = Task(
+                        description=task.description,
+                        time=task.time,
+                        frequency=task.frequency,
+                        completed=False
+                    )
+                    pet.add_task(new_task)
+                
                 return True
 
         return False

@@ -4,81 +4,164 @@ from dataclasses import dataclass, field
 
 
 @dataclass
-class Owner:
-	name: str
-	available_minutes: int
-	preferences: dict
-	tasks: list[Task] = field(default_factory=list)
+class Task:
+    """Represents a single pet-care activity."""
 
-	def add_task(self, task: Task) -> None:
-		pass
+    description: str
+    time: str
+    frequency: str
+    completed: bool = False
 
-	def update_preferences(self, new_prefs: dict) -> None:
-		pass
+    def mark_completed(self) -> None:
+        """Mark the task as completed."""
+        self.completed = True
+
+    def mark_complete(self) -> None:
+        """Alias for mark_completed."""
+        self.mark_completed()
+
+    def mark_incomplete(self) -> None:
+        """Mark the task as not completed."""
+        self.completed = False
+
+    def update_time(self, new_time: str) -> None:
+        """Update the scheduled time for this task."""
+        self.time = new_time
 
 
 @dataclass
 class Pet:
-	name: str
-	species: str
-	age_years: int
-	routine_notes: str
+    """Stores pet details and the tasks assigned to the pet."""
 
-	def get_care_profile(self) -> dict:
-		pass
+    name: str
+    species: str
+    age_years: int
+    routine_notes: str = ""
+    tasks: list[Task] = field(default_factory=list)
 
+    def add_task(self, task: Task) -> None:
+        """Add a task to this pet."""
+        self.tasks.append(task)
 
-@dataclass
-class Task:
-	title: str
-	duration_minutes: int
-	priority: str
-	category: str
-	time_window_start: str
-	time_window_end: str
-	is_required: bool
-	recurrence: str
+    def remove_task(self, description: str) -> bool:
+        """Remove the first task matching the description."""
+        for index, task in enumerate(self.tasks):
+            if task.description == description:
+                del self.tasks[index]
+                return True
+        return False
 
-	def fits_window(self, start_time: str) -> bool:
-		pass
-
-	def score(self, owner: Owner, pet: Pet) -> float:
-		pass
-
-
-@dataclass
-class ScheduleItem:
-	task: Task
-	start_time: str
-	end_time: str
-	reason: str
-
-	def overlaps(self, other: ScheduleItem) -> bool:
-		pass
+    def get_tasks(self, include_completed: bool = True) -> list[Task]:
+        """Return tasks, optionally excluding completed ones."""
+        if include_completed:
+            return list(self.tasks)
+        return [task for task in self.tasks if not task.completed]
 
 
 @dataclass
-class DailySchedule:
-	items: list[ScheduleItem] = field(default_factory=list)
-	skipped_tasks: list[Task] = field(default_factory=list)
-	total_minutes_used: int = 0
+class Owner:
+    """Owns and manages multiple pets."""
 
-	def add_item(self, item: ScheduleItem) -> None:
-		pass
+    name: str
+    available_minutes: int = 0
+    preferences: dict = field(default_factory=dict)
+    pets: list[Pet] = field(default_factory=list)
 
-	def remaining_minutes(self, owner: Owner) -> int:
-		pass
+    def add_pet(self, pet: Pet) -> None:
+        """Add a pet to this owner."""
+        self.pets.append(pet)
 
-	def explain_plan(self) -> list[str]:
-		pass
+    def remove_pet(self, pet_name: str) -> bool:
+        """Remove the first pet with the given name."""
+        for index, pet in enumerate(self.pets):
+            if pet.name == pet_name:
+                del self.pets[index]
+                return True
+        return False
+
+    def get_pet(self, pet_name: str) -> Pet | None:
+        """Return the pet with the given name, if present."""
+        for pet in self.pets:
+            if pet.name == pet_name:
+                return pet
+        return None
+
+    def get_all_tasks(self, include_completed: bool = True) -> list[Task]:
+        """Collect tasks from all pets owned by this owner."""
+        all_tasks: list[Task] = []
+        for pet in self.pets:
+            all_tasks.extend(pet.get_tasks(include_completed=include_completed))
+        return all_tasks
 
 
 class Scheduler:
-	def rank_tasks(self, tasks: list[Task], owner: Owner, pet: Pet) -> list[Task]:
-		pass
+    """Retrieves, organizes, and manages tasks across all pets."""
 
-	def build_schedule(self, tasks: list[Task], owner: Owner, pet: Pet) -> DailySchedule:
-		pass
+    def __init__(self, owner: Owner):
+        """Initialize a scheduler for a specific owner."""
+        self.owner = owner
 
-	def explain_skips(self, skipped: list[Task]) -> list[str]:
-		pass
+    def get_all_tasks(self, include_completed: bool = False) -> list[Task]:
+        """Return all tasks across the owner's pets."""
+        return self.owner.get_all_tasks(include_completed=include_completed)
+
+    def get_tasks_grouped_by_pet(self, include_completed: bool = False) -> dict[str, list[Task]]:
+        """Return tasks grouped by pet name."""
+        grouped: dict[str, list[Task]] = {}
+        for pet in self.owner.pets:
+            grouped[pet.name] = pet.get_tasks(include_completed=include_completed)
+        return grouped
+
+    def get_pending_tasks(self) -> list[Task]:
+        """Return only tasks that are not completed."""
+        return self.get_all_tasks(include_completed=False)
+
+    def organize_tasks(self, include_completed: bool = False) -> list[Task]:
+        """Return tasks sorted by completion, frequency, time, and description."""
+        frequency_order = {
+            "daily": 0,
+            "weekly": 1,
+            "monthly": 2,
+            "as needed": 3,
+        }
+
+        tasks = self.get_all_tasks(include_completed=include_completed)
+        return sorted(
+            tasks,
+            key=lambda task: (
+                task.completed,
+                frequency_order.get(task.frequency.strip().lower(), 99),
+                task.time,
+                task.description.lower(),
+            ),
+        )
+
+    def mark_task_completed(self, pet_name: str, description: str) -> bool:
+        """Mark a matching task as completed for the specified pet."""
+        pet = self.owner.get_pet(pet_name)
+        if pet is None:
+            return False
+
+        for task in pet.tasks:
+            if task.description == description:
+                task.mark_completed()
+                return True
+
+        return False
+
+    def add_task_to_pet(self, pet_name: str, task: Task) -> bool:
+        """Add a task to the specified pet if it exists."""
+        pet = self.owner.get_pet(pet_name)
+        if pet is None:
+            return False
+
+        pet.add_task(task)
+        return True
+
+    def remove_task_from_pet(self, pet_name: str, description: str) -> bool:
+        """Remove a matching task from the specified pet."""
+        pet = self.owner.get_pet(pet_name)
+        if pet is None:
+            return False
+
+        return pet.remove_task(description)

@@ -41,3 +41,18 @@ pip install -r requirements.txt
 5. Add tests to verify key behaviors.
 6. Connect your logic to the Streamlit UI in `app.py`.
 7. Refine UML so it matches what you actually built.
+
+## Features
+
+- Sorting by time: Tasks are sorted chronologically using `Scheduler.sort_by_time()` with a key that parses `HH:MM` into `(hour, minute)` tuples.
+- Multi-factor organization: `Scheduler.organize_tasks()` sorts by completion status, frequency order (`daily`, `weekly`, `monthly`, `as needed`), time, then description.
+- Filtering by status and pet: `Scheduler.filter_tasks()` supports filtering by completion state and optional pet name.
+- Conflict warnings (non-crashing): `Scheduler.detect_time_conflicts()` detects duplicate times and returns warning messages instead of raising exceptions.
+- Daily/weekly recurrence: `Scheduler.mark_task_completed()` marks the current task complete and automatically creates a new incomplete instance for recurring tasks.
+- Pending-only retrieval: `Scheduler.get_pending_tasks()` returns incomplete tasks for focused action lists.
+- Grouped schedule views: `Scheduler.get_tasks_grouped_by_pet()` returns tasks grouped by pet name.
+
+## Demo
+
+<a href="/demo/image.png" target=_blank><img src="/demo/image.png" title='PawPal App' width='' alt='PawPal App' class='center-block'></a>
+<a href="/demo/image copy.png" target=_blank><img src="/demo/image copy.png" title='PawPal App' width='' alt='PawPal App' class='center-block'></a>

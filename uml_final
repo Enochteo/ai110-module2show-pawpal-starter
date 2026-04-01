@@ -1,0 +1,72 @@
+```mermaid
+classDiagram
+    class Task {
+        +str description
+        +str time
+        +str frequency
+        +bool completed
+        +mark_completed() void
+        +mark_complete() void
+        +mark_incomplete() void
+        +update_time(new_time: str) void
+    }
+
+    class Pet {
+        +str name
+        +str species
+        +int age_years
+        +str routine_notes
+        +list~Task~ tasks
+        +add_task(task: Task) void
+        +remove_task(description: str) bool
+        +get_tasks(include_completed: bool=True) list~Task~
+    }
+
+    class Owner {
+        +str name
+        +int available_minutes
+        +dict preferences
+        +list~Pet~ pets
+        +add_pet(pet: Pet) void
+        +remove_pet(pet_name: str) bool
+        +get_pet(pet_name: str) Pet|None
+        +get_all_tasks(include_completed: bool=True) list~Task~
+    }
+
+    class Scheduler {
+        +Owner owner
+        +get_all_tasks(include_completed: bool=False) list~Task~
+        +get_tasks_grouped_by_pet(include_completed: bool=False) dict~str,list~Task~~
+        +get_pending_tasks() list~Task~
+        +filter_tasks(completed: bool|None=None, pet_name: str|None=None) list~Task~
+        +sort_by_time(include_completed: bool=False) list~Task~
+        +detect_time_conflicts(include_completed: bool=False, pet_name: str|None=None) list~str~
+        +organize_tasks(include_completed: bool=False) list~Task~
+        +mark_task_completed(pet_name: str, description: str) bool
+        +add_task_to_pet(pet_name: str, task: Task) bool
+        +remove_task_from_pet(pet_name: str, description: str) bool
+    }
+
+    class AppUI {
+        <<Streamlit>>
+        +normalize_time_input(raw_time: str) str|None
+        +add task via form
+        +show sorted schedule
+        +show filtered pending/completed views
+        +show conflict warnings
+        +mark task complete
+    }
+
+    Owner "1" o-- "0..*" Pet : owns
+    Pet "1" o-- "0..*" Task : has
+    Scheduler "1" --> "1" Owner : reads/manages
+    Scheduler ..> Task : sorts/filters/creates recurrence
+    Scheduler ..> Pet : task operations by pet
+    AppUI ..> Scheduler : calls methods
+    AppUI ..> Owner : session state
+    AppUI ..> Pet : session state
+    AppUI ..> Task : creates
+
+    note for Scheduler "Recurring logic:\nmark_task_completed() duplicates\ndaily/weekly task as new incomplete Task"
+    note for Scheduler "Conflict logic:\ndetect_time_conflicts() returns warnings\ninstead of raising exceptions"
+```
